@@ -136,7 +136,7 @@ class ModelModifier:
 
 
 #removed ", 'c4'" for faster tests
-    def calculate_model_perplexity(self, datasets=['wikitext2', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
+    def calculate_model_perplexity(self, datasets=['wikitext2', 'wikitext_de', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
       start_time = time.time()
 
       model = self.model
