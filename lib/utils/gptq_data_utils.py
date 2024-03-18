@@ -24,6 +24,33 @@ def get_wikitext2(n_samples, seed, seqlen, model):
 
     return test_enc
 
+def get_wikitext_de(n_samples, seed, seqlen, model):
+    print("get_wikitext_de", flush=True)
+    # Set the seed for reproducibility
+    np.random.seed(seed)
+    torch.random.manual_seed(seed)
+
+    # Hardcode the dataset path
+    dataset_path = "LeoLM/wikitext-en-de"
+    dataset_name = "wiki_de_exzellent_small"
+
+    # Load the dataset from Hugging Face datasets
+    dataset = load_dataset(dataset_path, dataset_name, split='train')
+    
+    # Sample the dataset if n_samples is specified
+    if n_samples is not None and n_samples < len(dataset):
+        dataset = dataset.select(range(n_samples))
+
+    # Initialize the tokenizer for German
+    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+    print("get_wikitext_de testenc", flush=True)
+    
+    # Tokenize the texts
+    texts = "\n\n".join(dataset['text'])  # Concatenate texts with "\n\n"
+    encoded_texts = tokenizer(texts, padding="max_length", truncation=True, max_length=seqlen, return_tensors='pt')
+
+    return encoded_texts
+
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
     print("get_ptb", flush=True)
@@ -103,6 +130,8 @@ def get_test_tokens(
 ):
     if name == 'wikitext2':
         return get_wikitext2(n_samples, seed, seqlen, model)['input_ids']
+    elif name == 'wikitext_de':
+        return get_wikitext_de(n_samples, seed, seqlen, model)["input_ids"]
     elif name == 'ptb':
         return get_ptb(n_samples, seed, seqlen, model)["input_ids"]
     elif name == 'c4':
