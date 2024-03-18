@@ -1,3 +1,4 @@
+
 import logging
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -7,8 +8,14 @@ from tqdm import tqdm
 import random
 import numpy as np
 
+model_name = "DiscoResearch/DiscoLM_German_7b_v1"  # Change to your preferred model
+#model_name = "cognitivecomputations/dolphin-2.6-mistral-7b-dpo"  # Change to your preferred model
+model_name_only = model_name.split('/')[1]
+profile ='' # your own profile, e.g. 'DiscoResearch'
+token_value = '' # your huggingface write token for uploading the lasered model
+
 # Setup logging
-logging.basicConfig(level=logging.INFO, 
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s - %(levelname)s - %(message)s',
                     handlers=[
                         logging.FileHandler("output.log", mode='a'), # Append mode
@@ -16,28 +23,11 @@ logging.basicConfig(level=logging.INFO,
                     ])
 
 # %%
-model_name = "DiscoResearch/DiscoLM_German_7b_v1"  # Change to your preferred model
-#model_name = "cognitivecomputations/dolphin-2.6-mistral-7b-dpo"  # Change to your preferred model
+
 
 # %%
 import torch
-
 import time
-
-# Check for CUDA, then MPS, and fall back to CPU
-if torch.cuda.is_available():
-    device = torch.device("cuda")
-    data_type = torch.bfloat16
-elif torch.backends.mps.is_available():
-    device = torch.device("mps")
-    data_type = torch.float16
-else:
-    device = torch.device("cpu")
-    data_type = torch.float16  # Default to float16 for non-GPU devices for consistency
-
-
-print(f"Using device: {device}")
-logging.info(f"Using device: {device}")
 
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
@@ -48,15 +38,26 @@ import numpy as np
 
 class ModelModifier:
     def __init__(self, model_name):
-        self.model_name = model_name
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=data_type)
+        # Determine the device as part of the class initialization
+        if torch.cuda.is_available():
+            self.device = torch.device("cuda")
+            self.data_type = torch.bfloat16
+        elif torch.backends.mps.is_available():
+            self.device = torch.device("mps")
+            self.data_type = torch.float16
+        else:
+            self.device = torch.device("cpu")
+            self.data_type = torch.float16  # Default to float16 for non-GPU devices for consistency
 
-        self.model.to(device)
+        logging.info(f"Using device: {self.device}")
+
+        self.model_name = model_name
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.data_type).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.original_weights = {}
         self.modified_layers = set()
         self.failed_attempts = set()
-        
+
 
     def update_model_reduce_layer(self, layer_type, layer_number):
         layer_id = f"{layer_type}_{layer_number}"
@@ -107,7 +108,7 @@ class ModelModifier:
         beta = n / m if n < m else m / n
         threshold = sigma * np.sqrt((1 + np.sqrt(beta))**2)
         return threshold
-    
+
     ## Calculate an estimate of the standard deviation of the singular values based on Inter Quantile Range
 
     @staticmethod
@@ -132,11 +133,12 @@ class ModelModifier:
                 else:
                     print(f"No original weights saved for layer: {name}")
                     logging.info(f"No original weights saved for layer: {name}")
-                    
 
-    def calculate_model_perplexity(self, datasets=['wikitext2', 'c4', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
+
+#removed ", 'c4'" for faster tests
+    def calculate_model_perplexity(self, datasets=['wikitext2', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
       start_time = time.time()
-    
+
       model = self.model
       acc_loss = 0.0
       total_samples = 0
@@ -172,7 +174,7 @@ class ModelModifier:
       logging.info(f"Completed perplexity calculation for all datasets in {total_elapsed:.2f} seconds. Total samples processed: {total_samples}. Perplexity: {ppl}")
 
       return ppl
-    
+
     ### Implement a Backward Search
     # Search for the optimal lower ranking approximations from the top layers downwards
     # Also, we try doing a greedy approach, in order to maximize the rank reduction.
@@ -193,7 +195,7 @@ class ModelModifier:
         logging.info("="*50)
         logging.info(f"Starting optimization over {total_operations} potential modifications.")
 
-        
+
         min_loss = initial_perplexity
         optimal_params = (None, None)
         mods = 0
@@ -207,7 +209,7 @@ class ModelModifier:
                 remaining_time = estimated_total_time - elapsed_time
 
                 logging.info(f"Optimizing layer {layer_type} {layer_number}. Progress: {operations_completed}/{total_operations}. Estimated time remaining: {remaining_time:.2f} seconds.")
- 
+
                 if mods >= max_mod and max_mod != -1:
                     return optimal_params, min_loss
                 attempt = (layer_type, layer_number)
@@ -229,10 +231,14 @@ class ModelModifier:
                         print("*"*50)
                         print(f"Improved perplexity found: {min_loss} for layer {layer_type} {layer_number}. Total modifications is {mods}")
                         print("*"*50)
-  
+
                         logging.info("*"*50)
                         logging.info(f"Improved perplexity found: {min_loss} for layer {layer_type} {layer_number}. Total modifications is {mods}")
-                        logging.info("*"*50)                  
+                        logging.info("*"*50)
+
+                        layer_number_str = str(layer_number)
+                        logging.info("temp saving: "+layer_number_str+" ...\n")
+                        self.save_model("laser_model_"+layer_number_str)
                     else:
                         self.restore_model_original_layer(layer_type, layer_number)
                         self.failed_attempts.add(attempt)  # Record the failed attempt
@@ -278,6 +284,26 @@ loop_check, min_loss = modifier.search_optimal_layer_modification(layer_types=['
 
 # %%
 logging.info("saving...")
-modifier.save_model("laser_model", "/root")
+modifier.save_model("laser_model_final")
 
+logging.info("uploading...")
 
+from huggingface_hub import HfApi, create_repo
+
+api = HfApi(token=token_value)
+repo_name = profile + "/" + model_name_only + "-laser"
+
+try:
+    # Attempt to fetch the repository details.
+    repo_info = api.repo_info(repo_name)
+    print(f"Repository '{repo_name}' already exists.")
+except:
+    # If the repository does not exist, create it.
+    create_repo(repo_name, token=token_value)
+    print(f"Repository '{repo_name}' has been created.")
+
+api = HfApi(token=token_value)
+api.upload_folder(
+    repo_id=repo_name,
+    folder_path="laser_model_final"
+)
