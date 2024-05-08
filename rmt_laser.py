@@ -1,4 +1,3 @@
-
 import logging
 import torch
 import argparse
@@ -8,8 +7,9 @@ from lib.utils import gptq_data_utils
 from tqdm import tqdm
 import random
 import numpy as np
+import time
 
-# %% Setup argument parsing
+# Setup argument parsing
 parser = argparse.ArgumentParser(description='Modify a transformer model.')
 parser.add_argument('model_name', type=str, help='The name of the model to modify.')
 parser.add_argument('profile_name', type=str, help='The name of your huggingface profile.')
@@ -30,20 +30,6 @@ logging.basicConfig(level=logging.INFO,
                         logging.StreamHandler() # Console output
                     ])
 
-# %%
-
-
-# %%
-import torch
-import time
-
-from transformers import AutoModelForCausalLM, AutoTokenizer
-import datasets
-from lib.utils import gptq_data_utils
-from tqdm import tqdm
-import random
-import numpy as np
-
 class ModelModifier:
     def __init__(self, model_name):
         # Determine the device as part of the class initialization
@@ -60,8 +46,8 @@ class ModelModifier:
         logging.info(f"Using device: {self.device}")
 
         self.model_name = model_name
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.data_type).to(self.device)
-        self.tokenizer = AutoTokenizer.from_pretrained(model_name)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.data_type).to(self.device,token=token_value)
+        self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=token_value)
         self.original_weights = {}
         self.modified_layers = set()
         self.failed_attempts = set()
