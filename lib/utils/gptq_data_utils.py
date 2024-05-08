@@ -29,7 +29,6 @@ def get_wikitext2(n_samples, seed, seqlen, model):
     return test_enc
 
 def get_wikitext_de(n_samples, seed, seqlen, model):
-def get_wikitext_de(n_samples, seed, seqlen, model):
     from datasets import load_dataset
     from transformers import AutoTokenizer
     import random
