@@ -1,6 +1,7 @@
 
 import logging
 import torch
+import argparse
 from transformers import AutoModelForCausalLM, AutoTokenizer
 import datasets
 from lib.utils import gptq_data_utils
@@ -8,11 +9,18 @@ from tqdm import tqdm
 import random
 import numpy as np
 
-model_name = "DiscoResearch/DiscoLM_German_7b_v1"  # Change to your preferred model
-#model_name = "cognitivecomputations/dolphin-2.6-mistral-7b-dpo"  # Change to your preferred model
+# %% Setup argument parsing
+parser = argparse.ArgumentParser(description='Modify a transformer model.')
+parser.add_argument('model_name', type=str, help='The name of the model to modify.')
+parser.add_argument('profile_name', type=str, help='The name of your huggingface profile.')
+parser.add_argument('hf_token', type=str, help='The token to access your huggingface account.')
+args = parser.parse_args()
+
+# Use the model_name argument to initialize your ModelModifier
+model_name = args.model_name
 model_name_only = model_name.split('/')[1]
-profile ='' # your own profile, e.g. 'DiscoResearch'
-token_value = '' # your huggingface write token for uploading the lasered model
+profile = args.profile_name
+token_value = args.hf_token
 
 # Setup logging
 logging.basicConfig(level=logging.INFO,
