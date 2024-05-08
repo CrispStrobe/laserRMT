@@ -34,7 +34,7 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
 
     # Hardcode the dataset path
     dataset_path = "LeoLM/wikitext-en-de"
-    dataset_name = "wiki_de_exzellent_small"
+    dataset_name = "exzellent_de_small"
 
     # Load the dataset from Hugging Face datasets
     dataset = load_dataset(dataset_path, dataset_name, split='train')
