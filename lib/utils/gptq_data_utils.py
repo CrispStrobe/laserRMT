@@ -46,6 +46,9 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
     # Initialize the tokenizer for German
     from transformers import AutoTokenizer 
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token  # Often safe for models like GPT which use eos_token for padding as well
+
     print("get_wikitext_de testenc", flush=True)
     
     # Tokenize the texts
