@@ -28,6 +28,23 @@ def get_wikitext2(n_samples, seed, seqlen, model):
 
     return test_enc
 
+def get_wikitext2_new(n_samples, seed, seqlen, model):
+    from datasets import load_dataset
+    from transformers import AutoTokenizer
+
+    dataset = load_dataset('wikitext', 'wikitext-2-raw-v1', split='test')
+    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+
+    # Join all text data into a single string, then split into chunks of approximately seqlen
+    all_text = " ".join(dataset['text'])
+    max_length = n_samples * seqlen  # Total number of tokens to generate
+    tokens = tokenizer(all_text[:max_length], return_tensors='pt', max_length=max_length, truncation=True, padding="max_length")
+
+    # Reshape the tokens to have shape [nsamples, seqlen]
+    input_ids = tokens.input_ids.view(n_samples, seqlen)
+
+    return {'input_ids': input_ids}
+
 @lru_cache
 def get_wikitext_de(n_samples, seed, seqlen, model):
     print("Initializing get_wikitext_de function")
