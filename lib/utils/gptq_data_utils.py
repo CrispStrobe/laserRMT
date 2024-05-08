@@ -28,12 +28,10 @@ def get_wikitext2(n_samples, seed, seqlen, model):
 
     return test_enc
 
+@lru_cache
 def get_wikitext_de(n_samples, seed, seqlen, model):
-    from datasets import load_dataset
-    from transformers import AutoTokenizer
-    import random
-    import torch
-
+    print("get_wikitext_de", flush=True)
+    
     try:
         dataset = load_dataset("LeoLM/wikitext-en-de", "exzellent_de_small", split='train')
     except Exception as e:
@@ -48,32 +46,16 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
         print(f"Failed to initialize tokenizer: {e}")
         return
 
-    random.seed(seed)
-    processed_tokens = []
-    for entry in dataset:
-        text = entry['text']
-        sentences = text.split('. ')
-        current_text = ""
-        for sentence in sentences:
-            if len(current_text) + len(sentence) + 2 > seqlen:
-                if current_text:
-                    encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
-                    processed_tokens.append(encoded.input_ids.squeeze(0))
-                current_text = ""
-            current_text += sentence + ". "
-        if len(processed_tokens) >= n_samples:
-            break
+    print("get_wikitext_de tokenizer", flush=True)
 
-    if len(processed_tokens) > n_samples:
-        processed_tokens = processed_tokens[:n_samples]
-    elif len(processed_tokens) < n_samples:
-        padding_tensor = torch.full((n_samples - len(processed_tokens), seqlen), tokenizer.pad_token_id, dtype=torch.long)
-        processed_tokens.extend(padding_tensor)
+    # Concatenate the 'title' and 'text' fields with a newline separator
+    texts = [f"{example['title']}\n{example['text']}" for example in dataset]
 
-    test_tokens_tensor = torch.stack(processed_tokens, dim=0)
-    print(f"Final tensor shape: {test_tokens_tensor.shape}")  # Debug statement
-    return {'input_ids': test_tokens_tensor}
+    # Tokenize the concatenated text
+    test_enc = tokenizer("\n\n".join(texts[:n_samples]), return_tensors='pt', max_length=seqlen, truncation=True)
+    print("get_wikitext_de test_enc", test_enc, flush=True)
 
+    return test_enc
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
