@@ -43,16 +43,14 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
 
     # Seed numpy's random generator to ensure reproducibility
     np.random.seed(seed)
-    # If n_samples is more than the dataset size, adjust it to the dataset size
-    n_samples = min(n_samples, len(dataset))
-
-    # Randomly sample n_samples indices from the dataset
-    indices = np.random.choice(len(dataset), size=n_samples, replace=False)
-    sampled_dataset = dataset.select(indices)
+    # Randomly sample n_samples indices from the dataset if dataset is larger than n_samples
+    if n_samples < len(dataset):
+        indices = np.random.choice(len(dataset), size=n_samples, replace=False)
+        dataset = dataset.select(indices)
 
     # Tokenize each article separately
     tokenized_texts = []
-    for entry in sampled_dataset:
+    for entry in dataset:
         # Tokenize text, ensuring each is treated as a single sequence
         encoded_text = tokenizer(entry['text'], max_length=seqlen, truncation=True, padding="max_length", return_tensors='pt')
         tokenized_texts.append(encoded_text['input_ids'])  # Collect input_ids
