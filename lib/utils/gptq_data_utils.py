@@ -31,7 +31,7 @@ def get_wikitext2(n_samples, seed, seqlen, model):
 @lru_cache
 def get_wikitext_de(n_samples, seed, seqlen, model):
     print("Initializing get_wikitext_de function")
-    
+
     # Load the dataset
     try:
         dataset = load_dataset("LeoLM/wikitext-en-de", "exzellent_de_small", split='train')
@@ -50,23 +50,18 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
 
     print("Tokenizer initialized successfully")
 
-    # Process multiple samples
+    # Process samples ensuring each sample's tokenization
     input_ids = []
-    attention_masks = []
     for i in range(min(n_samples, len(dataset))):
-        text = f"{dataset[i]['title']}\n{dataset[i]['text']}"
+        text = dataset[i]['text']
         encoded = tokenizer(text, max_length=seqlen, truncation=True, padding="max_length", return_tensors="pt")
-        input_ids.append(encoded['input_ids'])
-        attention_masks.append(encoded['attention_mask'])
+        input_ids.append(encoded['input_ids'].squeeze(0))  # Squeeze to remove batch dimension
 
-        print(f"Processed sample {i+1}: {text[:30]}...")  # Print the beginning of each sample for debugging
+    # Stack all input_ids to form a single tensor
+    input_ids = torch.stack(input_ids)
 
-    # Concatenate all encoded inputs into a single tensor
-    input_ids = torch.cat(input_ids, dim=0)
-    attention_masks = torch.cat(attention_masks, dim=0)
-
-    print(f"Total samples processed: {len(input_ids)}")
-    return {'input_ids': input_ids, 'attention_mask': attention_masks}
+    print(f"Total samples processed: {input_ids.shape[0]}, each of length: {input_ids.shape[1]}")
+    return {'input_ids': input_ids}
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
