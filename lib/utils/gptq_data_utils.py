@@ -50,17 +50,18 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
 
     print("Tokenizer initialized successfully")
 
-    # Process samples ensuring each sample's tokenization
-    input_ids = []
-    for i in range(min(n_samples, len(dataset))):
-        text = dataset[i]['text']
-        encoded = tokenizer(text, max_length=seqlen, truncation=True, padding="max_length", return_tensors="pt")
-        input_ids.append(encoded['input_ids'].squeeze(0))  # Squeeze to remove batch dimension
+    # Concatenate texts to a single string (like in get_ptb)
+    combined_text = " ".join([dataset[i]['text'] for i in range(min(n_samples, len(dataset)))])
 
-    # Stack all input_ids to form a single tensor
-    input_ids = torch.stack(input_ids)
+    # Tokenize the combined text
+    encoded = tokenizer(combined_text, return_tensors='pt', max_length=seqlen * n_samples, truncation=True, padding="max_length")
 
-    print(f"Total samples processed: {input_ids.shape[0]}, each of length: {input_ids.shape[1]}")
+    # Reshape the token tensor to have n_samples rows, each of seqlen length
+    if encoded.input_ids.size(1) < seqlen * n_samples:
+        print(f"Warning: Encoded text is shorter than expected. Size: {encoded.input_ids.size(1)}")
+    input_ids = encoded.input_ids[:, :seqlen * n_samples].view(n_samples, seqlen)
+
+    print(f"Total samples processed: {n_samples}, each of length: {seqlen}")
     return {'input_ids': input_ids}
 
 @lru_cache
