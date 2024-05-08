@@ -29,16 +29,20 @@ def get_wikitext2(n_samples, seed, seqlen, model):
     return test_enc
 
 def get_wikitext_de(n_samples, seed, seqlen, model):
-    print("Fetching WikiText-DE dataset from Hugging Face Hub", flush=True)
+    print("Fetching WikiText-DE dataset", flush=True)
 
     # Load the dataset
     dataset_path = "LeoLM/wikitext-en-de"
     dataset_name = "exzellent_de_small"
     dataset = load_dataset(dataset_path, dataset_name, split='train')
 
-    # Seed numpy's random generator for reproducibility in sampling
-    np.random.seed(seed)
+    # Initialize the tokenizer
+    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+    if tokenizer.pad_token is None:
+        tokenizer.pad_token = tokenizer.eos_token  # Use the eos token if no pad token is available
 
+    # Seed numpy's random generator to ensure reproducibility
+    np.random.seed(seed)
     # If n_samples is more than the dataset size, adjust it to the dataset size
     n_samples = min(n_samples, len(dataset))
 
@@ -46,34 +50,17 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
     indices = np.random.choice(len(dataset), size=n_samples, replace=False)
     sampled_dataset = dataset.select(indices)
 
-    # Initialize the tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token  # Use the eos token if no pad token is available
-
-    # Process texts to fit within seqlen
+    # Tokenize each article separately
     tokenized_texts = []
     for entry in sampled_dataset:
-        text = entry['text']
-        # Split text into segments that are likely to be under the seqlen limit
-        segments = []
-        current_segment = ""
-        for sentence in re.split(r'(?<=[.!?])\s+', text):  # Split text into sentences
-            if len(tokenizer.encode(current_segment + sentence, add_special_tokens=False)) > seqlen:
-                if current_segment:  # Store the current segment if it's not empty
-                    segments.append(current_segment)
-                current_segment = sentence
-            else:
-                current_segment += (" " + sentence if current_segment else sentence)
-        if current_segment:  # Don't forget to add the last segment
-            segments.append(current_segment)
+        # Tokenize text, ensuring each is treated as a single sequence
+        encoded_text = tokenizer(entry['text'], max_length=seqlen, truncation=True, padding="max_length", return_tensors='pt')
+        tokenized_texts.append(encoded_text['input_ids'])  # Collect input_ids
 
-        # Tokenize each segment separately
-        for segment in segments:
-            encoded_text = tokenizer(segment, max_length=seqlen, truncation=True, padding="max_length", return_tensors='pt')
-            tokenized_texts.append(encoded_text)
+    # Combine all input_ids into a single tensor
+    combined_input_ids = torch.cat(tokenized_texts, dim=0)
 
-    return tokenized_texts
+    return {'input_ids': combined_input_ids}
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
