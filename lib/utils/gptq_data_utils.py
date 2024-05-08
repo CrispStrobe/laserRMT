@@ -5,6 +5,7 @@ From https://github.com/IST-DASLab/gptq/blob/main/datautils.py
 import numpy as np
 import torch
 from functools import lru_cache
+import datasets
 
 def set_seed(seed):
     np.random.seed(seed)
