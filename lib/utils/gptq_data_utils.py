@@ -7,6 +7,8 @@ import torch
 from functools import lru_cache
 import datasets
 from datasets import load_dataset
+from transformers import AutoTokenizer
+import re
 
 def set_seed(seed):
     np.random.seed(seed)
@@ -27,35 +29,51 @@ def get_wikitext2(n_samples, seed, seqlen, model):
     return test_enc
 
 def get_wikitext_de(n_samples, seed, seqlen, model):
-    print("get_wikitext_de", flush=True)
-    # Set the seed for reproducibility
-    np.random.seed(seed)
-    torch.random.manual_seed(seed)
+    print("Fetching WikiText-DE dataset from Hugging Face Hub", flush=True)
 
-    # Hardcode the dataset path
+    # Load the dataset
     dataset_path = "LeoLM/wikitext-en-de"
     dataset_name = "exzellent_de_small"
-
-    # Load the dataset from Hugging Face datasets
     dataset = load_dataset(dataset_path, dataset_name, split='train')
-    
-    # Sample the dataset if n_samples is specified
-    if n_samples is not None and n_samples < len(dataset):
-        dataset = dataset.select(range(n_samples))
 
-    # Initialize the tokenizer for German
-    from transformers import AutoTokenizer 
+    # Seed numpy's random generator for reproducibility in sampling
+    np.random.seed(seed)
+
+    # If n_samples is more than the dataset size, adjust it to the dataset size
+    n_samples = min(n_samples, len(dataset))
+
+    # Randomly sample n_samples indices from the dataset
+    indices = np.random.choice(len(dataset), size=n_samples, replace=False)
+    sampled_dataset = dataset.select(indices)
+
+    # Initialize the tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
     if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token  # Often safe for models like GPT which use eos_token for padding as well
+        tokenizer.pad_token = tokenizer.eos_token  # Use the eos token if no pad token is available
 
-    print("get_wikitext_de testenc", flush=True)
-    
-    # Tokenize the texts
-    texts = "\n\n".join(dataset['text'])  # Concatenate texts with "\n\n"
-    encoded_texts = tokenizer(texts, padding="max_length", truncation=True, max_length=seqlen, return_tensors='pt')
+    # Process texts to fit within seqlen
+    tokenized_texts = []
+    for entry in sampled_dataset:
+        text = entry['text']
+        # Split text into segments that are likely to be under the seqlen limit
+        segments = []
+        current_segment = ""
+        for sentence in re.split(r'(?<=[.!?])\s+', text):  # Split text into sentences
+            if len(tokenizer.encode(current_segment + sentence, add_special_tokens=False)) > seqlen:
+                if current_segment:  # Store the current segment if it's not empty
+                    segments.append(current_segment)
+                current_segment = sentence
+            else:
+                current_segment += (" " + sentence if current_segment else sentence)
+        if current_segment:  # Don't forget to add the last segment
+            segments.append(current_segment)
 
-    return encoded_texts
+        # Tokenize each segment separately
+        for segment in segments:
+            encoded_text = tokenizer(segment, max_length=seqlen, truncation=True, padding="max_length", return_tensors='pt')
+            tokenized_texts.append(encoded_text)
+
+    return tokenized_texts
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
