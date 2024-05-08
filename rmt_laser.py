@@ -139,13 +139,20 @@ class ModelModifier:
       for dataset in datasets:
         dataset_start_time = time.time()
         input_tok = gptq_data_utils.get_test_tokens(dataset, seed=0, seqlen=seqlen, model=self.model_name)
-        
-        # Ensure input_tok is already the correct shape
-        if input_tok.dim() == 2 and input_tok.shape[1] == seqlen:
-            nsamples = input_tok.shape[0]
-        else:
-            raise ValueError(f"input_tok shape mismatch: expected something like [nsamples, {seqlen}], got {input_tok.shape}")
 
+        # Check the shape and adjust if necessary
+        if input_tok.shape[1] != seqlen:
+            if input_tok.shape[1] > seqlen:
+                # Assuming the tensor might be too large and needs to be split into [nsamples, seqlen]
+                try:
+                    nsamples = input_tok.shape[1] // seqlen
+                    input_tok = input_tok[0, :nsamples * seqlen].view(nsamples, seqlen)
+                except Exception as e:
+                    raise ValueError(f"Cannot reshape tensor from {input_tok.shape} to [{nsamples}, {seqlen}]: {str(e)}")
+            else:
+                raise ValueError(f"Expected sequence length {seqlen}, but got {input_tok.shape[1]} for dataset {dataset}")
+
+        nsamples = input_tok.shape[0]
         total_samples += nsamples
         logging.info(f"Processing dataset {dataset}. Total samples: {nsamples}")
 
@@ -170,6 +177,7 @@ class ModelModifier:
       logging.info(f"Completed perplexity calculation for all datasets in {total_elapsed:.2f} seconds. Total samples processed: {total_samples}. Perplexity: {ppl}")
 
       return ppl
+
   
     def calculate_model_perplexity_old(self, datasets=['wikitext2', 'wikitext_de', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
       start_time = time.time()
