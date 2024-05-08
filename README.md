@@ -1,4 +1,10 @@
-# Optimizing Large Language Models Using Layer-Selective Rank Reduction and Random Matrix Theory
+# Note on this fork
+This is merely a fork for more convenient usage in a special case. I mostly added some logging and the rmt_laser.py script now takes 3 parameters which makes it a little easier to deploy in colab/kaggle/runpod:
+rmt_laser.py {MODEL_ID} {username} {token}
+
+# Original README text follows...
+
+## Optimizing Large Language Models Using Layer-Selective Rank Reduction and Random Matrix Theory
 
 ## Abstract
 In this study, we introduce a novel adaptation of Layer-Selective Rank Reduction (LASER) for optimizing large language models, utilizing Marchenko-Pastur law from Random Matrix Theory. This approach marks a key advancement from the brute-force search methodology proposed in the original LASER framework. Our method strategically reduces model complexity while preserving, or even enhancing, performance as measured by perplexity. This targeted reduction, guided by the mathematical principles of Marchenko-Pastur, results in a more efficient and effective optimization process, setting a new standard for language model refinement.
