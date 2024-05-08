@@ -52,14 +52,15 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
 
     # Concatenate texts to a single string (like in get_ptb)
     combined_text = " ".join([dataset[i]['text'] for i in range(min(n_samples, len(dataset)))])
-
+    
     # Tokenize the combined text
     encoded = tokenizer(combined_text, return_tensors='pt', max_length=seqlen * n_samples, truncation=True, padding="max_length")
 
     # Reshape the token tensor to have n_samples rows, each of seqlen length
     if encoded.input_ids.size(1) < seqlen * n_samples:
         print(f"Warning: Encoded text is shorter than expected. Size: {encoded.input_ids.size(1)}")
-    input_ids = encoded.input_ids[:, :seqlen * n_samples].view(n_samples, seqlen)
+    #input_ids = encoded.input_ids[:, :seqlen * n_samples].view(n_samples, seqlen)
+    input_ids = encoded.input_ids[0][:seqlen * n_samples].view(n_samples, seqlen)  # Make sure this line is correctly slicing and reshaping the tensor
 
     print(f"Total samples processed: {n_samples}, each of length: {seqlen}")
     return {'input_ids': input_ids}
