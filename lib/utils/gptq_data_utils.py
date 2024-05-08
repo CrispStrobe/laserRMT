@@ -30,14 +30,16 @@ def get_wikitext2(n_samples, seed, seqlen, model):
 
 @lru_cache
 def get_wikitext_de(n_samples, seed, seqlen, model):
-    print("get_wikitext_de", flush=True)
+    print("Initializing get_wikitext_de function")
     
+    # Load the dataset
     try:
         dataset = load_dataset("LeoLM/wikitext-en-de", "exzellent_de_small", split='train')
     except Exception as e:
         print(f"Failed to load dataset: {e}")
         return
 
+    # Initialize tokenizer with the padding token
     try:
         tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
         if tokenizer.pad_token is None:
@@ -46,16 +48,25 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
         print(f"Failed to initialize tokenizer: {e}")
         return
 
-    print("get_wikitext_de tokenizer", flush=True)
+    print("Tokenizer initialized successfully")
 
-    # Concatenate the 'title' and 'text' fields with a newline separator
-    texts = [f"{example['title']}\n{example['text']}" for example in dataset]
+    # Process multiple samples
+    input_ids = []
+    attention_masks = []
+    for i in range(min(n_samples, len(dataset))):
+        text = f"{dataset[i]['title']}\n{dataset[i]['text']}"
+        encoded = tokenizer(text, max_length=seqlen, truncation=True, padding="max_length", return_tensors="pt")
+        input_ids.append(encoded['input_ids'])
+        attention_masks.append(encoded['attention_mask'])
 
-    # Tokenize the concatenated text
-    test_enc = tokenizer("\n\n".join(texts[:n_samples]), return_tensors='pt', max_length=seqlen, truncation=True)
-    print("get_wikitext_de test_enc", test_enc, flush=True)
+        print(f"Processed sample {i+1}: {text[:30]}...")  # Print the beginning of each sample for debugging
 
-    return test_enc
+    # Concatenate all encoded inputs into a single tensor
+    input_ids = torch.cat(input_ids, dim=0)
+    attention_masks = torch.cat(attention_masks, dim=0)
+
+    print(f"Total samples processed: {len(input_ids)}")
+    return {'input_ids': input_ids, 'attention_mask': attention_masks}
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
