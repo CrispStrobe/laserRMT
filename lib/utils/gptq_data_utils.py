@@ -44,6 +44,7 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
         dataset = dataset.select(range(n_samples))
 
     # Initialize the tokenizer for German
+    from transformers import AutoTokenizer 
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
     print("get_wikitext_de testenc", flush=True)
     
