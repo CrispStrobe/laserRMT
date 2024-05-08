@@ -6,6 +6,7 @@ import numpy as np
 import torch
 from functools import lru_cache
 import datasets
+from datasets import load_dataset
 
 def set_seed(seed):
     np.random.seed(seed)
