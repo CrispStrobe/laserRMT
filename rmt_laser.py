@@ -46,7 +46,7 @@ class ModelModifier:
         logging.info(f"Using device: {self.device}")
 
         self.model_name = model_name
-        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.data_type).to(self.device,token=token_value)
+        self.model = AutoModelForCausalLM.from_pretrained(model_name, torch_dtype=self.data_type, token=token_value).to(self.device)
         self.tokenizer = AutoTokenizer.from_pretrained(model_name, token=token_value)
         self.original_weights = {}
         self.modified_layers = set()
