@@ -130,7 +130,48 @@ class ModelModifier:
 
 
 #removed ", 'c4'" for faster tests
-    def calculate_model_perplexity(self, datasets=['wikitext2', 'wikitext_de', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
+  def calculate_model_perplexity(self, datasets=['wikitext2', 'wikitext_de', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
+    start_time = time.time()
+    model = self.model
+    acc_loss = 0.0
+    total_samples = 0
+
+    for dataset in datasets:
+        dataset_start_time = time.time()
+        input_tok = gptq_data_utils.get_test_tokens(dataset, seed=0, seqlen=seqlen, model=self.model_name)
+        
+        # Ensure input_tok is already the correct shape
+        if input_tok.dim() == 2 and input_tok.shape[1] == seqlen:
+            nsamples = input_tok.shape[0]
+        else:
+            raise ValueError(f"input_tok shape mismatch: expected something like [nsamples, {seqlen}], got {input_tok.shape}")
+
+        total_samples += nsamples
+        logging.info(f"Processing dataset {dataset}. Total samples: {nsamples}")
+
+        loss_fct = torch.nn.CrossEntropyLoss().to(self.device)
+        progress = tqdm(range(nsamples), desc=f"Processing {dataset}")
+
+        for ii in progress:
+            input = input_tok[ii, :].to(self.device).unsqueeze(0)
+            output = model(input, use_cache=False, output_hidden_states=False, output_attentions=False)[0]
+            shift_logits = output[:, :-1, :].contiguous()
+            shift_labels = input[:, 1:]
+            loss = loss_fct(shift_logits.view(-1, shift_logits.size(-1)), shift_labels.view(-1))
+            acc_loss += loss.item()
+            progress.set_description(f"avg_loss = {acc_loss / (ii + 1)}")
+
+        dataset_elapsed = time.time() - dataset_start_time
+        logging.info(f"Completed processing dataset {dataset} in {dataset_elapsed:.2f} seconds.")
+
+    avg_loss = acc_loss / total_samples
+    ppl = torch.exp(torch.tensor(avg_loss)).item()
+    total_elapsed = time.time() - start_time
+    logging.info(f"Completed perplexity calculation for all datasets in {total_elapsed:.2f} seconds. Total samples processed: {total_samples}. Perplexity: {ppl}")
+
+    return ppl
+  
+  def calculate_model_perplexity_old(self, datasets=['wikitext2', 'wikitext_de', 'ptb'], seqlen=384, use_cuda_graph=False, use_flash_attn=False):
       start_time = time.time()
 
       model = self.model
