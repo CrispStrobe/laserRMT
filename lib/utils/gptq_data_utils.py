@@ -34,50 +34,46 @@ def get_wikitext_de(n_samples, seed, seqlen, model):
     import random
     import torch
 
-    # Load WikiText-DE dataset
-    dataset_path = "LeoLM/wikitext-en-de"
-    dataset_name = "exzellent_de_small"
-    dataset = load_dataset(dataset_path, dataset_name, split='train')
+    try:
+        dataset = load_dataset("LeoLM/wikitext-en-de", "exzellent_de_small", split='train')
+    except Exception as e:
+        print(f"Failed to load dataset: {e}")
+        return
 
-    # Initialize tokenizer
-    tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
-    if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token
+    try:
+        tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+    except Exception as e:
+        print(f"Failed to initialize tokenizer: {e}")
+        return
 
-    # Set seed
     random.seed(seed)
-
-    # Prepare dataset for test
-    test_tokens = []
-    for i in range(len(dataset)):
-        text = dataset[i]['text']
+    processed_tokens = []
+    for entry in dataset:
+        text = entry['text']
         sentences = text.split('. ')
         current_text = ""
         for sentence in sentences:
-            if len(current_text) + len(sentence) + 2 <= seqlen:
-                current_text += sentence + ". "
-            else:
-                encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
-                test_tokens.append(encoded.input_ids.squeeze(0))
-                current_text = sentence + ". "
-        if current_text:
-            encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
-            test_tokens.append(encoded.input_ids.squeeze(0))
-        if len(test_tokens) >= n_samples:
+            if len(current_text) + len(sentence) + 2 > seqlen:
+                if current_text:
+                    encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
+                    processed_tokens.append(encoded.input_ids.squeeze(0))
+                current_text = ""
+            current_text += sentence + ". "
+        if len(processed_tokens) >= n_samples:
             break
 
-    # Pad or truncate the test_tokens to ensure the desired shape (nsamples, seqlen)
-    if len(test_tokens) > n_samples:
-        test_tokens = test_tokens[:n_samples]
-    elif len(test_tokens) < n_samples:
-        padding_tensor = torch.full((n_samples - len(test_tokens), seqlen), tokenizer.pad_token_id, dtype=torch.long)
-        test_tokens.extend(padding_tensor)
+    if len(processed_tokens) > n_samples:
+        processed_tokens = processed_tokens[:n_samples]
+    elif len(processed_tokens) < n_samples:
+        padding_tensor = torch.full((n_samples - len(processed_tokens), seqlen), tokenizer.pad_token_id, dtype=torch.long)
+        processed_tokens.extend(padding_tensor)
 
-    # Converting the list of tensors into a single tensor and wrapping it in a dictionary
-    test_tokens_tensor = torch.stack(test_tokens, dim=0)
-    test_data_dict = {'input_ids': test_tokens_tensor}
+    test_tokens_tensor = torch.stack(processed_tokens, dim=0)
+    print(f"Final tensor shape: {test_tokens_tensor.shape}")  # Debug statement
+    return {'input_ids': test_tokens_tensor}
 
-    return test_data_dict
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
