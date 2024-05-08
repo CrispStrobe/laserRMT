@@ -29,36 +29,47 @@ def get_wikitext2(n_samples, seed, seqlen, model):
     return test_enc
 
 def get_wikitext_de(n_samples, seed, seqlen, model):
-    print("Fetching WikiText-DE dataset", flush=True)
+    from datasets import load_dataset
+    from transformers import AutoTokenizer
+    import random
 
-    # Load the dataset
+    # Load WikiText-DE dataset
     dataset_path = "LeoLM/wikitext-en-de"
     dataset_name = "exzellent_de_small"
     dataset = load_dataset(dataset_path, dataset_name, split='train')
 
-    # Initialize the tokenizer
+    # Initialize tokenizer
     tokenizer = AutoTokenizer.from_pretrained(model, use_fast=True)
     if tokenizer.pad_token is None:
-        tokenizer.pad_token = tokenizer.eos_token  # Use the eos token if no pad token is available
+        tokenizer.pad_token = tokenizer.eos_token
 
-    # Seed numpy's random generator to ensure reproducibility
-    np.random.seed(seed)
-    # Randomly sample n_samples indices from the dataset if dataset is larger than n_samples
-    if n_samples < len(dataset):
-        indices = np.random.choice(len(dataset), size=n_samples, replace=False)
-        dataset = dataset.select(indices)
+    # Set seed
+    random.seed(seed)
 
-    # Tokenize each article separately
-    tokenized_texts = []
-    for entry in dataset:
-        # Tokenize text, ensuring each is treated as a single sequence
-        encoded_text = tokenizer(entry['text'], max_length=seqlen, truncation=True, padding="max_length", return_tensors='pt')
-        tokenized_texts.append(encoded_text['input_ids'])  # Collect input_ids
+    # Prepare dataset for test
+    test_tokens = []
+    for i in range(len(dataset)):
+        text = dataset[i]['text']
+        sentences = text.split('. ')
+        current_text = ""
+        for sentence in sentences:
+            if len(current_text) + len(sentence) + 2 <= seqlen:
+                current_text += sentence + ". "
+            else:
+                encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
+                test_tokens.append(encoded.input_ids)
+                current_text = sentence + ". "
+        if current_text:
+            encoded = tokenizer(current_text, return_tensors='pt', padding="max_length", truncation=True, max_length=seqlen)
+            test_tokens.append(encoded.input_ids)
+        if len(test_tokens) >= n_samples:
+            break
 
-    # Combine all input_ids into a single tensor
-    combined_input_ids = torch.cat(tokenized_texts, dim=0)
+    # Converting the list of tensors into a single tensor and wrapping it in a dictionary
+    test_tokens_tensor = torch.cat(test_tokens[:n_samples], dim=0)
+    test_data_dict = {'input_ids': test_tokens_tensor}
 
-    return {'input_ids': combined_input_ids}
+    return test_data_dict
 
 @lru_cache
 def get_ptb(n_samples, seed, seqlen, model):
